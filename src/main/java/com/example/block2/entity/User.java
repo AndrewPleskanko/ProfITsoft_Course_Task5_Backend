@@ -63,6 +63,9 @@ public class User extends AbstractEntity implements UserDetails {
     @Column(name = "age")
     private Integer age;
 
+    @Column(name = "status", nullable = false)
+    private boolean status;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Collections.singleton(new SimpleGrantedAuthority(role.getName()));
@@ -86,6 +89,6 @@ public class User extends AbstractEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return status;
     }
 }

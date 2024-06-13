@@ -21,11 +21,13 @@ public interface UserMapper {
     @Mapping(source = "password", target = "password")
     @Mapping(source = "email", target = "email")
     @Mapping(source = "role", target = "role")
+    @Mapping(source = "status", target = "status")
     User toEntity(UserDto userDto);
 
     @Mapping(source = "username", target = "username")
     @Mapping(source = "password", target = "password",ignore = true)
     @Mapping(source = "email", target = "email")
     @Mapping(source = "role", target = "role")
+    @Mapping(source = "status", target = "status")
     UserDto toSafeDto(User user);
 }

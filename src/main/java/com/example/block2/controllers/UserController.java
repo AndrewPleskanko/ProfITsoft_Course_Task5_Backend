@@ -43,6 +43,13 @@ public class UserController {
     private final UserService userService;
     private final UserMapper userMapper;
 
+    @PostMapping("/deactivate/{id}")
+    public ResponseEntity<GroupResponseDto<UserDto>> list(@PathVariable Long id) {
+        log.info("Deactivating user with ID: {}", id);
+        userService.deactivateUser(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @Operation(summary = "Create a new user",
             description = "Creates a new user and returns the created user",
             responses = {

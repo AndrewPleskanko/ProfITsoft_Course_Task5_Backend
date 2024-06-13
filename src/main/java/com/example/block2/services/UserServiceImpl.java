@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.block2.dto.EmailMessageDto;
 import com.example.block2.dto.GroupResponseDto;
 import com.example.block2.dto.UserDto;
 import com.example.block2.dto.UserFilterDto;
@@ -32,6 +33,7 @@ import com.example.block2.services.interfaces.RoleService;
 import com.example.block2.services.interfaces.UserService;
 import com.example.block2.services.userimport.UserReportStrategy;
 import com.example.block2.services.userimport.UserReportStrategyFactory;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.criteria.Predicate;
@@ -55,6 +57,7 @@ public class UserServiceImpl implements UserService {
     private final RoleService roleService;
     private final UserReportStrategyFactory reportStrategyFactory;
     private final ObjectMapper objectMapper;
+    private final EmailEventProducerImpl kafkaProducer;
 
     /**
      * Creates a new user.
@@ -66,19 +69,66 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public User createUser(UserDto userDto) {
         log.info("Starting createUser method with userDto: {}", userDto);
+
+        if (userRepository.existsByUsername(userDto.getUsername())) {
+            throw new IllegalArgumentException("User with the same username already exists");
+        }
+
         User user = userMapper.toEntity(userDto);
         String userPassword = user.getPassword();
         String encodedPassword = passwordEncoder.encode(userPassword);
         user.setPassword(encodedPassword);
-        log.info("Starting createUser method with userDto: {}", userDto);
+
         String roleName = userDto.getRole().getName();
         Role role = roleService.getRoleByName(roleName);
         user.setRole(role);
+        user.setStatus(true);
 
         User savedUser = userRepository.save(user);
+
         log.debug("Saved user: {}", savedUser);
 
         return savedUser;
+    }
+
+    /**
+     * Deactivates a user by setting their status to false.
+     *
+     * @param id the id of the user to deactivate
+     * @throws EntityNotFoundException if no user is found with the given id
+     */
+    @Override
+    @Transactional
+    public void deactivateUser(Long id) {
+        log.info("Starting to deactivate user with ID: {}", id);
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User", id));
+
+        user.setStatus(false);
+        userRepository.save(user);
+        log.debug("User with ID: {} has been deactivated", id);
+
+        sendDeactivationEmail(user);
+    }
+
+    private void sendDeactivationEmail(User user) {
+        String subject = "User deactivation";
+        String content = "You have been deactivated on site!";
+
+        EmailMessageDto emailMessage = new EmailMessageDto();
+        emailMessage.setRecipientEmail(user.getEmail());
+        emailMessage.setSubject(subject);
+        emailMessage.setContent(content);
+
+        try {
+            String jsonMessage = objectMapper.writeValueAsString(emailMessage);
+            kafkaProducer.sendEmailEvent("user-deactivation", jsonMessage);
+            log.info("Deactivation email has been sent to user with ID: {}", user.getId());
+        } catch (JsonProcessingException e) {
+            log.error("Error converting message to JSON", e);
+            throw new RuntimeException("Error converting message to JSON", e);
+        }
     }
 
     /**
@@ -91,14 +141,8 @@ public class UserServiceImpl implements UserService {
     @Override
     public User getUser(Long id) {
         log.info("Reading user by id: {}", id);
-        Optional<User> user = userRepository.findById(id);
-        if (user.isEmpty()) {
-            throw new EntityNotFoundException("User", id);
-        }
-
-        log.debug("User found: {}", user);
-
-        return user.get();
+        return userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User", id));
     }
 
     /**
@@ -111,25 +155,31 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public User updateUser(Long id, UserDto userDto) {
-        log.info("Update user with id: {}", id);
-        log.info("Update user with user: {}", userDto);
-        User user = userMapper.toEntity(userDto);
-        user.setId(id);
+        log.info("Starting to update user with ID: {}", id);
+
+        User userToUpdate = userMapper.toEntity(userDto);
+        userToUpdate.setId(id);
+
         String roleName = userDto.getRole().getName();
         Role role = roleService.getRoleByName(roleName);
-        user.setRole(role);
+        userToUpdate.setRole(role);
+
+        userToUpdate.setStatus(userDto.isStatus());
+
         if (userDto.getPassword() != null && !userDto.getPassword().isEmpty()) {
             String encodedPassword = passwordEncoder.encode(userDto.getPassword());
-            user.setPassword(encodedPassword);
+            userToUpdate.setPassword(encodedPassword);
         } else {
-            User existingUser = userRepository.findById(id).orElseThrow(() ->
-                    new EntityNotFoundException("User", id));
-            user.setPassword(existingUser.getPassword());
+            User existingUser = userRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("User", id));
+            userToUpdate.setPassword(existingUser.getPassword());
         }
-        User updatedUser = userRepository.save(user);
+
+        User updatedUser = userRepository.save(userToUpdate);
+
         log.debug("Updated user: {}", updatedUser);
 
-        return user;
+        return updatedUser;
     }
 
     /**
@@ -153,20 +203,29 @@ public class UserServiceImpl implements UserService {
     /**
      * Lists users with a given filter and pagination.
      *
-     * @param filter   the user filter data transfer object
+     * @param filter the user filter data transfer object
      * @return a page of users
      */
     @Override
     public GroupResponseDto<UserDto> listUsers(UserFilterDto filter) {
-        log.info("List users with filter: {}", filter);
+        log.info("Starting to list users with filter: {}", filter);
+
         Specification<User> spec = createSpecification(filter);
-        int size = (filter.getSize() != null) ? filter.getSize() : 10;
-        Pageable pageable = PageRequest.of(filter.getPage(), size);
+
+        int size = Optional.ofNullable(filter.getSize()).orElse(10);
+        int page = Optional.ofNullable(filter.getPage()).orElse(0);
+
+        Pageable pageable = PageRequest.of(page, size);
+
         Page<User> usersPage = userRepository.findAll(spec, pageable);
+
         List<UserDto> usersDto = usersPage.getContent().stream()
                 .map(userMapper::toDto)
                 .collect(Collectors.toList());
-        log.debug("Found users: {}", usersDto);
+
+        log.debug("Found {} users from {} to {}", usersDto.size(),
+                pageable.getOffset(), pageable.getOffset() + usersDto.size());
+
         return new GroupResponseDto<>(usersDto, usersPage.getTotalPages());
     }
 
@@ -187,13 +246,17 @@ public class UserServiceImpl implements UserService {
         byte[] content = reportStrategy.generateReport(users);
         String reportName = reportStrategy.generateReportName();
 
+        log.debug("Report generated with name: {}", reportName);
+
         return new UserReportDto(content, reportName);
     }
 
     public List<User> getAllUsersMatchingFilter(UserFilterDto filter) {
         log.info("Starting to get all users matching filter: {}", filter);
+
         Specification<User> spec = createSpecification(filter);
         List<User> users = userRepository.findAll(spec);
+
         log.debug("Found {} users matching filter", users.size());
 
         return users;
@@ -256,11 +319,15 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<UserDto> getAllUsers() {
         log.info("Getting all users");
+
         List<User> users = userRepository.findAll();
+
         List<UserDto> userDtos = users.stream()
                 .map(userMapper::toDto)
                 .collect(Collectors.toList());
+
         log.debug("Found {} users", userDtos.size());
+
         return userDtos;
     }
 }

@@ -27,4 +27,6 @@ public interface UserService {
     UserUploadResultDto uploadUsersFromFile(MultipartFile multipartFile) throws Exception;
 
     UserReportDto generateReport(UserFilterDto filter);
+
+    void deactivateUser(Long id);
 }

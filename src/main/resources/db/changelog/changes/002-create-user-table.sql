@@ -7,5 +7,6 @@ CREATE TABLE app_user
     role_id INT NOT NULL,
     phone VARCHAR(15),
     age INT,
+    status BOOLEAN NOT NULL DEFAULT true,
     FOREIGN KEY (role_id) REFERENCES role (id)
 );

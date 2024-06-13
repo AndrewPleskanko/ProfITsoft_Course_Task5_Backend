@@ -21,6 +21,7 @@ public class UserDto {
     @Size(min = 2, max = 30, message = "Username must be between 2 and 30 characters long")
     private String username;
 
+    @NotBlank(message = "Password cannot be blank")
     @Size(min = 5, max = 255, message = "Password must be between 6 and 50 characters long")
     private String password;
 
@@ -38,4 +39,5 @@ public class UserDto {
     @Max(value = 110, message = "Age should not be greater than 100")
     private Integer age;
 
+    private boolean status;
 }

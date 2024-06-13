@@ -8,4 +8,5 @@ import com.example.block2.entity.User;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
+    boolean existsByUsername(String username);
 }

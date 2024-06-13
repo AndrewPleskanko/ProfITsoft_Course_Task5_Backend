@@ -10,13 +10,19 @@ services:
     depends_on:
       - db
       - test-db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USERNAME=andrew
+      - DB_USER=andrew
+      - DB_PASSWORD=12345678
 
   db:
     image: postgres:15
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydatabase
+      POSTGRES_USER: andrew
+      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: registration
     volumes:
       - db-data:/var/lib/postgresql/data
     ports:
@@ -36,3 +42,5 @@ services:
 volumes:
   db-data:
   pg-data:
+
+
