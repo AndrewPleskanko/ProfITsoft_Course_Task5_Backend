@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
@@ -12,8 +11,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.example.block2.dto.GroupResponseDto;
@@ -32,6 +33,9 @@ import com.example.block2.utils.UserTestUtils;
 
 @SpringBootTest
 public class UserServiceIntegrationTest extends BaseServiceTest {
+
+    @MockBean
+    private KafkaTemplate<String, String> kafkaTemplate;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -66,8 +70,8 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
         roleUser = roleRepository.save(roleUser);
         roleAdmin = roleRepository.save(roleAdmin);
         // Save users in the database
-        userRepository.save(new User("test1", "test123", "presF@gmail.com", roleUser, "1234567890", 25));
-        userRepository.save(new User("test2", "test234", "test2@gmail.com", roleAdmin, "1234567890", 25));
+        userRepository.save(new User("test1", "test123", "presF@gmail.com", roleUser, "1234567890", 25, true));
+        userRepository.save(new User("test2", "test234", "test2@gmail.com", roleAdmin, "1234567890", 25, true));
         UserDto userDto1 = UserTestUtils.createUserDto("john", "123", roleMapper.toDto(roleUser), "testUser@gmail.com");
         UserDto userDto2 = UserTestUtils.createUserDto("admin", "admin", roleAdminDto, "testAdmin@gmail.com");
         userService.createUser(userDto1);
@@ -78,7 +82,7 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
     public void createUser_createsNewUser_returnsCreatedUser() {
         // Given
         UserDto userDto = new UserDto(null, "testCreateUser",
-                "testCreatePassword", "testCreateUser@gmail.com", roleUserDto, "1234567890", 25);
+                "testCreatePassword", "testCreateUser@gmail.com", roleUserDto, "1234567890", 25, true);
 
         // When
         User createdUserDto = userService.createUser(userDto);
@@ -96,9 +100,9 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
         RoleDto roleDto = new RoleDto(1L, "ROLE_USER_GetAllUsers");
         Role save = roleRepository.save(roleMapper.toEntity(roleDto));
         User user1 = new User("testUser1", "testPassword1",
-                "testUser1@gmail.com", roleMapper.toEntity(roleDto), "1234567890", 25);
+                "testUser1@gmail.com", roleMapper.toEntity(roleDto), "1234567890", 25, true);
         User user2 = new User("testUser2", "testPassword2",
-                "testUser2@gmail.com", save, "1234567890", 25);
+                "testUser2@gmail.com", save, "1234567890", 25, true);
 
         // When
         List<UserDto> users = userService.getAllUsers();
@@ -113,7 +117,7 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
         // Given
         RoleDto roleDto = new RoleDto(1L, "ROLE_USER_GetAllUsers");
         Role save = roleRepository.save(roleMapper.toEntity(roleDto));
-        User user = new User("testUser", "testPassword", "testUser@gmail.com", save, "1234567890", 25);
+        User user = new User("testUser", "testPassword", "testUser@gmail.com", save, "1234567890", 25, true);
         User savedUser = userRepository.save(user);
         Long id = savedUser.getId();
 
@@ -133,11 +137,11 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
         RoleDto roleDto = new RoleDto(1L, "ROLE_USER_Update");
         roleRepository.save(roleMapper.toEntity(roleDto));
         UserDto userDto = new UserDto(null, "testUpdateUser",
-                "testUpdatePassword", "testUpdateUser@gmail.com", roleDto, "1234567890", 25);
+                "testUpdatePassword", "testUpdateUser@gmail.com", roleDto, "1234567890", 25, true);
         User createdUser = userService.createUser(userDto);
 
         UserDto updatedUserDto = new UserDto(createdUser.getId(), "updatedUsername",
-                "updatedPassword", createdUser.getEmail(), roleDto, createdUser.getPhone(), createdUser.getAge());
+                "updatedPassword", createdUser.getEmail(), roleDto, createdUser.getPhone(), createdUser.getAge(), true);
 
         // When
         User updatedUser = userService.updateUser(createdUser.getId(), updatedUserDto);
@@ -152,9 +156,9 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
         // Given
         RoleDto roleDto = new RoleDto(2L, "ROLE_Delete");
         Role save = roleRepository.save(roleMapper.toEntity(roleDto));
-        User user = new User("testUser", "testPassword", "testUser@gmail.com", save, "1234567890", 25);
+        User user = new User("testUser", "testPassword", "testUser@gmail.com", save, "1234567890", 25, true);
         UserDto userDto = new UserDto(null, user.getUsername(), user.getPassword(),
-                user.getEmail(), roleDto, user.getPhone(), user.getAge());
+                user.getEmail(), roleDto, user.getPhone(), user.getAge(), true);
         User createdUserDto = userService.createUser(userDto);
 
         // When
@@ -169,9 +173,9 @@ public class UserServiceIntegrationTest extends BaseServiceTest {
         // Given
         Role role = roleRepository.save(new Role("USER"));
         userRepository.save(new User("testUser1345444444442",
-                "testPassword1", "testUser1@gmail.com", role, "1234567890", 25));
+                "testPassword1", "testUser1@gmail.com", role, "1234567890", 25, true));
         userRepository.save(new User("testUser22467358467534",
-                "testPassword2", "testUser2@gmail.com", role, "1234567890", 25));
+                "testPassword2", "testUser2@gmail.com", role, "1234567890", 25, true));
         UserFilterDto filter = new UserFilterDto();
         filter.setUsername("testUser");
         filter.setPage(0);

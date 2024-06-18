@@ -16,6 +16,8 @@ services:
       - DB_USERNAME=andrew
       - DB_USER=andrew
       - DB_PASSWORD=12345678
+    networks:
+      - my-network
 
   db:
     image: postgres:15
@@ -27,6 +29,8 @@ services:
       - db-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - my-network
 
   test-db:
     image: postgres:16-alpine
@@ -38,6 +42,8 @@ services:
       - pg-data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    networks:
+      - my-network
 
 volumes:
   db-data:

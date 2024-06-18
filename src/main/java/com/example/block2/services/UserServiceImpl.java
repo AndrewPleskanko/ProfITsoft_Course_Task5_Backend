@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +52,10 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
+    private static final String USER_ENTITY = "User";
+    private static final String DEACTIVATION_SUBJECT = "User deactivation";
+    private static final String DEACTIVATION_CONTENT = "You have been deactivated on site!";
+
     private final UserMapper userMapper;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -58,6 +63,9 @@ public class UserServiceImpl implements UserService {
     private final UserReportStrategyFactory reportStrategyFactory;
     private final ObjectMapper objectMapper;
     private final EmailEventProducerImpl kafkaProducer;
+
+    @Value(value = "${kafka.topic.email.service}")
+    private String emailServiceTopicName;
 
     /**
      * Creates a new user.
@@ -103,7 +111,7 @@ public class UserServiceImpl implements UserService {
         log.info("Starting to deactivate user with ID: {}", id);
 
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User", id));
+                .orElseThrow(() -> new EntityNotFoundException(USER_ENTITY, id));
 
         user.setStatus(false);
         userRepository.save(user);
@@ -113,17 +121,15 @@ public class UserServiceImpl implements UserService {
     }
 
     private void sendDeactivationEmail(User user) {
-        String subject = "User deactivation";
-        String content = "You have been deactivated on site!";
 
         EmailMessageDto emailMessage = new EmailMessageDto();
         emailMessage.setRecipientEmail(user.getEmail());
-        emailMessage.setSubject(subject);
-        emailMessage.setContent(content);
+        emailMessage.setSubject(DEACTIVATION_SUBJECT);
+        emailMessage.setContent(DEACTIVATION_CONTENT);
 
         try {
             String jsonMessage = objectMapper.writeValueAsString(emailMessage);
-            kafkaProducer.sendEmailEvent("user-deactivation", jsonMessage);
+            kafkaProducer.sendEmailEvent(emailServiceTopicName, jsonMessage);
             log.info("Deactivation email has been sent to user with ID: {}", user.getId());
         } catch (JsonProcessingException e) {
             log.error("Error converting message to JSON", e);
@@ -142,7 +148,7 @@ public class UserServiceImpl implements UserService {
     public User getUser(Long id) {
         log.info("Reading user by id: {}", id);
         return userRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("User", id));
+                .orElseThrow(() -> new EntityNotFoundException(USER_ENTITY, id));
     }
 
     /**
@@ -171,7 +177,7 @@ public class UserServiceImpl implements UserService {
             userToUpdate.setPassword(encodedPassword);
         } else {
             User existingUser = userRepository.findById(id)
-                    .orElseThrow(() -> new EntityNotFoundException("User", id));
+                    .orElseThrow(() -> new EntityNotFoundException(USER_ENTITY, id));
             userToUpdate.setPassword(existingUser.getPassword());
         }
 
@@ -193,7 +199,7 @@ public class UserServiceImpl implements UserService {
 
         if (!userRepository.existsById(id)) {
             log.error("User not found with id: {}", id);
-            throw new EntityNotFoundException("User", id);
+            throw new EntityNotFoundException(USER_ENTITY, id);
         }
 
         userRepository.deleteById(id);

@@ -43,8 +43,15 @@ public class UserController {
     private final UserService userService;
     private final UserMapper userMapper;
 
+    @Operation(summary = "Deactivate a user",
+            description = "Deactivates a user by id",
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "User successfully deactivated"),
+                    @ApiResponse(responseCode = "404", description = "User not found"),
+                    @ApiResponse(responseCode = "500", description = "Server error")
+            })
     @PostMapping("/deactivate/{id}")
-    public ResponseEntity<GroupResponseDto<UserDto>> list(@PathVariable Long id) {
+    public ResponseEntity<GroupResponseDto<UserDto>> deactivateUser(@PathVariable Long id) {
         log.info("Deactivating user with ID: {}", id);
         userService.deactivateUser(id);
         return ResponseEntity.noContent().build();
